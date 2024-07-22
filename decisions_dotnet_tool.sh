@@ -2,16 +2,21 @@
 
 SCRIPTNAME=$0
 function usage() {
-	echo "usage: $SCRIPTNAME [-h] [--duration DURATION] [--tool TOOL] [--dumptype DUMPTYPE]"
+	echo "usage: $SCRIPTNAME [tool]"
+	echo
+	echo "ARGUMENTS"
+	echo "  [tool]"
+	echo "  required. either of <dotnet-dump|dotnet-trace>"
+	echo
+	echo "OPTIONS"
 	echo "  -h | --help   display this help message"
-	echo "  --tool        <dotnet-trace|dotnet-dump> Required."
 	echo "  --duration    specified for trace. In minutes, 00 to 59. Defaults to 05."
 	echo "  --dumptype    <Full|Heap|Mini|Triage> Only specified for dotnet-dump. Defaults to Full"
 }
 
 # This block canonicalizes user-provided command line options and exits the
 # script if they supplied something unrecognized (e.g --somethingdumb)
-VALIDARGS=$(getopt -o h --long help,duration:,tool:,dumptype: \
+VALIDARGS=$(getopt -o h --long help,duration:,dumptype: \
 	-n "decisions_dotnet_tool.sh" -- "$@")
 if [ $? != 0 ]; then
 	echo "Invalid arguments / options,see ${SCRIPTNAME} -h for help.." >&2
@@ -34,10 +39,6 @@ while true; do
 		DURATION="$2"
 		shift 2
 		;;
-	--tool)
-		TOOL="$2"
-		shift 2
-		;;
 	--dumptype)
 		DUMPTYPE="$2"
 		shift 2
@@ -49,6 +50,8 @@ while true; do
 	*) break ;;
 	esac
 done
+
+TOOL=$1
 
 case "${DUMPTYPE}" in
 Full | Heap | Mini | Triage) ;;
