@@ -1,17 +1,27 @@
 #!/usr/bin/env bash
 
+# To be used later in output statements
+
+RED="\e[31m"
+GREEN="\e[32m"
+BLUE="\e[34m"
+YELLOW="\e[33m"
+NC="\e[0m" # NC for "No Color"
+
 SCRIPTNAME=$0
 function usage() {
-	echo "usage: $SCRIPTNAME [tool]"
-	echo
-	echo "ARGUMENTS"
-	echo "  [tool]"
-	echo "  required. either of <dotnet-dump|dotnet-trace>"
-	echo
-	echo "OPTIONS"
-	echo "  -h | --help   display this help message"
-	echo "  --duration    specified for trace. In minutes, 00 to 59. Defaults to 05."
-	echo "  --dumptype    <Full|Heap|Mini|Triage> Only specified for dotnet-dump. Defaults to Full"
+	echo -e
+	echo -e "${GREEN}USAGE${NC}"
+	echo -e "${BLUE}  $SCRIPTNAME [tool]${NC}"
+	echo -e
+	echo -e "${GREEN}ARGUMENTS${NC}"
+	echo -e "${BLUE}  [tool]${NC}"
+	echo -e "${BLUE}  required. either of <dotnet-dump|dotnet-trace>${NC}"
+	echo -e
+	echo -e "${GREEN}OPTIONS${NC}"
+	echo -e "${BLUE}  -h | --help   display this help message${NC}"
+	echo -e "${BLUE}  --duration    specified for trace. In minutes, 00 to 59. Defaults to 05.${NC}"
+	echo -e "${BLUE}  --dumptype    <Full|Heap|Mini|Triage> Only specified for dotnet-dump. Defaults to Full${NC}"
 }
 
 # This block canonicalizes user-provided command line options and exits the
@@ -19,7 +29,7 @@ function usage() {
 VALIDARGS=$(getopt -o h --long help,duration:,dumptype: \
 	-n "decisions_dotnet_tool.sh" -- "$@")
 if [ $? != 0 ]; then
-	echo "Invalid arguments / options,see ${SCRIPTNAME} -h for help.." >&2
+	echo -e "\n${RED}Invalid arguments / options,see ${SCRIPTNAME} -h for help..${NC}" >&2
 	exit 1
 fi
 eval set -- "$VALIDARGS"
@@ -56,7 +66,7 @@ TOOL=$1
 case "${DUMPTYPE}" in
 Full | Heap | Mini | Triage) ;;
 *)
-	echo "Invalid dumptype ${DUMPTYPE} specified, exiting.." >&2
+	echo -e "\n${RED}Invalid dumptype ${DUMPTYPE} specified, exiting..${NC}" >&2
 	exit 1
 	;;
 esac
@@ -64,46 +74,59 @@ esac
 case "${TOOL}" in
 dotnet-trace | dotnet-dump) ;;
 '')
-	usage
+	echo -e "\n${RED}No tool specified. Exiting...${NC}" >&2
 	exit 1
 	;;
 *)
-	echo "Invalid tool ${TOOL} specified, exiting.." >&2
+	echo -e "\n${RED}Invalid tool ${TOOL} specified, exiting..${NC}" >&2
 	exit 1
 	;;
 esac
 
 if ! [[ "$DURATION" =~ ^[0-5][0-9]$ ]]; then
-	echo "Invalid duration ${DURATION}. Please specify a number 01-59." >&2
-	echo "Exiting.." >&2
+	echo -e "\n${RED}Invalid duration ${DURATION}. Please specify a number 01-59.${NC}" >&2
+	echo -e "  ${RED}Exiting..${NC}" >&2
 	exit 1
 fi
 
 # This might fail if container can't connect to the internet.
 if [[ ! -f /root/.dotnet/tools/${TOOL} ]]; then
-	echo "Attempting to install ${TOOL}.."
+	echo -e "\n${YELLOW}Attempting to install ${TOOL}..${NC}"
 	dotnet tool install --global "${TOOL}" >/dev/null || {
-		echo "failed to install ${TOOL}"
+		echo -e "  ${RED}failed to install ${TOOL}${NC}. Exiting..." >&2
 		exit 2
 	}
-	echo "Install successful!"
+	echo -e "${GREEN}Install successful!${NC}"
+else
+	echo -e "\n${GREEN}${TOOL} already installed, proceeding..${NC}"
 fi
 
 mkdir -p "${DECISIONS_FILESTORAGELOCATION}/dotnet/${TOOL}-data"
+OUTFILE="${DECISIONS_FILESTORAGELOCATION}/dotnet/${TOOL}-data/$(date +"%Y-%m-%d_%H.%M.%S")"
 
 case "${TOOL}" in
 dotnet-trace)
+	echo -e "\n${YELLOW}Beginning trace for ${DURATION} minutes..${NC}"
+	echo -e "  ${BLUE}Note: pressing <ENTER> or <CTRL-C> will end the trace early."
 	/root/.dotnet/tools/"${TOOL}" collect \
 		--process-id 1 \
 		--profile "cpu-sampling" \
-		--output "${DECISIONS_FILESTORAGELOCATION}/dotnet/${TOOL}-data/$(date +"%Y-%m-%d_%H.%M.%S").nettrace" \
-		--duration 00:00:"${DURATION}":00
+		--output "${OUTFILE}.nettrace" \
+		--duration 00:00:"${DURATION}":00 &>/dev/null
+	echo -e "\n${GREEN}Trace complete!${NC}"
+	echo -e "  ${GREEN}Wrote output to ${OUTFILE}.nettrace${NC}"
+	echo "---"
 	;;
 dotnet-dump)
+	echo -e "\n${YELLOW}Writing dump...${NC}"
 	/root/.dotnet/tools/"${TOOL}" collect \
 		--process-id 1 \
 		--type "${DUMPTYPE}" \
-		--output "${DECISIONS_FILESTORAGELOCATION}/dotnet/${TOOL}-data/$(date +"%Y-%m-%d_%H.%M.%S").nettrace"
+		--output "${OUTFILE}" \
+		&>/dev/null
+	echo -e "\n${GREEN}Dump complete!${NC}"
+	echo -e "  ${GREEN}Wrote output to ${OUTFILE}${NC}"
+	echo "---"
 	;;
 *) exit 1 ;;
 esac
