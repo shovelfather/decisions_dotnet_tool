@@ -106,7 +106,7 @@ fi
 
 # Used ls /proc strategy here because `procps` isn't installed on our
 # containers by default so can't rely on `pgrep`.
-if ! ls /proc/*/exe | grep -e "/proc/${PID}/"; then
+if ! ls /proc/*/exe | grep -e "/proc/${PID}/" >/dev/null ; then
 	echo -e "${RED}ERROR: PID ${PID} was not found.${NC}"
 	echo -e "${RED}Possibly you forgot to set this with --pid flag and script used default value.${NC}"
 	exit 1
