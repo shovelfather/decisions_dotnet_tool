@@ -21,13 +21,14 @@ function usage() {
 	echo -e "${GREEN}OPTIONS${NC}"
 	echo -e "${BLUE}  -h | --help   display this help message${NC}"
 	echo -e "${BLUE}  --duration    specified for trace. In minutes, 00 to 59. Defaults to 05.${NC}"
-	echo -e "${BLUE}  --output      absolute path to output directory. must exist. ${NC}"
+	echo -e "${BLUE}  --output      absolute path to output directory. must exist.${NC}"
+	echo -e "${BLUE}  --pid     the PID of the process to trace / memory dump. Defaults to 1${NC}"
 	echo -e "${BLUE}  --dumptype    <Full|Heap|Mini|Triage> Only specified for dotnet-dump. Defaults to Full${NC}"
 }
 
 # This block canonicalizes user-provided command line options and exits the
 # script if they supplied something unrecognized (e.g --somethingdumb)
-VALIDARGS=$(getopt -o h --long help,duration:,dumptype:,output: \
+VALIDARGS=$(getopt -o h --long help,duration:,dumptype:,output:,pid: \
 	-n "decisions_dotnet_tool.sh" -- "$@")
 if [ $? != 0 ]; then
 	echo -e "\n${RED}Invalid arguments / options,see ${SCRIPTNAME} -h for help..${NC}" >&2
@@ -39,6 +40,10 @@ eval set -- "$VALIDARGS"
 DURATION="05"
 DUMPTYPE="Full"
 OUTPUT="${DECISIONS_FILESTORAGELOCATION}"
+# Fallback to /tmp if FILESTORAGELOCATION not set
+if [[ -z "${DECISIONS_FILESTORAGELOCATION}" ]]; then
+	OUTPUT="/tmp"
+fi
 
 # Parse canonicalized options and set corresponding script variables.
 while true; do
@@ -57,6 +62,10 @@ while true; do
 		;;
 	--output)
 		OUTPUT="$2"
+		shift 2
+		;;
+	--pid)
+		PID="$2"
 		shift 2
 		;;
 	--)
@@ -95,6 +104,14 @@ if ! [[ "$DURATION" =~ ^[0-5][0-9]$ ]]; then
 	exit 1
 fi
 
+# Used ls /proc strategy here because `procps` isn't installed on our
+# containers by default so can't rely on `pgrep`.
+if ! ls /proc/*/exe | grep -e "/proc/${PID}/"; then
+	echo -e "${RED}ERROR: PID ${PID} was not found.${NC}"
+	echo -e "${RED}Possibly you forgot to set this with --pid flag and script used default value.${NC}"
+	exit 1
+fi
+
 # This might fail if container can't connect to the internet.
 if [[ ! -f /root/.dotnet/tools/${TOOL} ]]; then
 	echo -e "\n${YELLOW}Attempting to install ${TOOL}..${NC}"
@@ -120,7 +137,7 @@ dotnet-trace)
 	echo -e "\n${YELLOW}Beginning trace for ${DURATION} minutes..${NC}"
 	echo -e "  ${BLUE}Note: pressing <ENTER> or <CTRL-C> will end the trace early."
 	/root/.dotnet/tools/"${TOOL}" collect \
-		--process-id 1 \
+		--process-id "${PID}" \
 		--profile "cpu-sampling" \
 		--output "${OUTFILE}.nettrace" \
 		--duration 00:00:"${DURATION}":00 &>/dev/null
@@ -131,7 +148,7 @@ dotnet-trace)
 dotnet-dump)
 	echo -e "\n${YELLOW}Writing dump...${NC}"
 	/root/.dotnet/tools/"${TOOL}" collect \
-		--process-id 1 \
+		--process-id ${PID} \
 		--type "${DUMPTYPE}" \
 		--output "${OUTFILE}" \
 		&>/dev/null
