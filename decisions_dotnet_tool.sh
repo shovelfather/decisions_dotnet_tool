@@ -21,12 +21,13 @@ function usage() {
 	echo -e "${GREEN}OPTIONS${NC}"
 	echo -e "${BLUE}  -h | --help   display this help message${NC}"
 	echo -e "${BLUE}  --duration    specified for trace. In minutes, 00 to 59. Defaults to 05.${NC}"
+	echo -e "${BLUE}  --output      absolute path to output directory. must exist. ${NC}"
 	echo -e "${BLUE}  --dumptype    <Full|Heap|Mini|Triage> Only specified for dotnet-dump. Defaults to Full${NC}"
 }
 
 # This block canonicalizes user-provided command line options and exits the
 # script if they supplied something unrecognized (e.g --somethingdumb)
-VALIDARGS=$(getopt -o h --long help,duration:,dumptype: \
+VALIDARGS=$(getopt -o h --long help,duration:,dumptype:,output: \
 	-n "decisions_dotnet_tool.sh" -- "$@")
 if [ $? != 0 ]; then
 	echo -e "\n${RED}Invalid arguments / options,see ${SCRIPTNAME} -h for help..${NC}" >&2
@@ -37,6 +38,7 @@ eval set -- "$VALIDARGS"
 # Set defaults
 DURATION="05"
 DUMPTYPE="Full"
+OUTPUT="${DECISIONS_FILESTORAGELOCATION}"
 
 # Parse canonicalized options and set corresponding script variables.
 while true; do
@@ -51,6 +53,10 @@ while true; do
 		;;
 	--dumptype)
 		DUMPTYPE="$2"
+		shift 2
+		;;
+	--output)
+		OUTPUT="$2"
 		shift 2
 		;;
 	--)
@@ -101,8 +107,13 @@ else
 	echo -e "\n${GREEN}${TOOL} already installed, proceeding..${NC}"
 fi
 
-mkdir -p "${DECISIONS_FILESTORAGELOCATION}/dotnet/${TOOL}-data"
-OUTFILE="${DECISIONS_FILESTORAGELOCATION}/dotnet/${TOOL}-data/$(date +"%Y-%m-%d_%H.%M.%S")"
+if [[ ! -d "${OUTPUT}" ]]; then
+	echo -e "${RED}Specified output directory ${OUTPUT} does not exist.${NC}. Exiting..." >&2
+	exit 2
+fi
+
+mkdir -p "${OUTPUT}/dotnet/${TOOL}-data"
+OUTFILE="${OUTPUT}/dotnet/${TOOL}-data/$(date +"%Y-%m-%d_%H.%M.%S")"
 
 case "${TOOL}" in
 dotnet-trace)
